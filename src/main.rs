@@ -1,21 +1,22 @@
 #![no_std]
 #![no_main]
 
-use core::panic::PanicInfo;
+mod vga;
 
-const HELLO: &str = "Hello from rust!";
+use core::panic::PanicInfo;
+use vga::{Color, ColorCode};
 
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".text.start")]
 pub extern "C" fn _start() -> ! {
-    let vga_buffer = 0xB8000 as *mut u8;
+    let mut vga_buffer = vga::Buffer::new();
+    let color = ColorCode::new(Color::LightRed, Color::Black);
 
-    for (i, byte) in HELLO.chars().enumerate() {
-        unsafe {
-            *vga_buffer.offset(i as isize * 2) = byte as u8;
-            *vga_buffer.offset(i as isize * 2 + 1) = 0x0C;
-        }
-    }
+    vga_buffer.clear_screen();
+    vga_buffer.print_str("line 1\n", color);
+    vga_buffer.print_str("line 2\n", color);
+    vga_buffer.print_str("line 3\n", color);
+    vga_buffer.print_str("line 4", color);
 
     loop {}
 }
