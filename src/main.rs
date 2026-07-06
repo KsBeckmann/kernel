@@ -1,27 +1,53 @@
 #![no_std]
 #![no_main]
+#![feature(custom_test_frameworks)]
+#![test_runner(crate::testing::test_runner)]
+#![reexport_test_harness_main = "test_main"]
+#![cfg_attr(test, allow(dead_code))]
 
+mod serial;
+#[cfg(test)]
+mod testing;
 mod vga;
 
+use core::arch::asm;
+#[cfg(not(test))]
 use core::panic::PanicInfo;
-use vga::{Color, ColorCode};
 
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".text.start")]
 pub extern "C" fn _start() -> ! {
-    let mut vga_buffer = vga::Buffer::new();
-    let color = ColorCode::new(Color::LightRed, Color::Black);
+    #[cfg(not(test))]
+    kernel_main();
 
-    vga_buffer.clear_screen();
-    vga_buffer.print_str("line 1\n", color);
-    vga_buffer.print_str("line 2\n", color);
-    vga_buffer.print_str("line 3\n", color);
-    vga_buffer.print_str("line 4", color);
+    #[cfg(test)]
+    test_main();
 
-    loop {}
+    halt();
 }
 
+#[cfg(not(test))]
+fn kernel_main() {
+    vga::clear_screen();
+    println!("x = {}, y = {}", 2 + 2, 3 + 3);
+}
+
+#[cfg(not(test))]
 #[panic_handler]
-fn panic(_info: &PanicInfo) -> ! {
-    loop {}
+fn panic(info: &PanicInfo) -> ! {
+    println!("{}", info);
+    halt();
+}
+
+pub fn halt() -> ! {
+    loop {
+        unsafe {
+            asm!("hlt");
+        }
+    }
+}
+
+#[test_case]
+fn trivial_assertion() {
+    assert_eq!(1, 1);
 }
