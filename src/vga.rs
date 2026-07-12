@@ -59,7 +59,7 @@ pub struct ColorCode(u8);
 
 impl ColorCode {
     pub const fn new(fg: Color, bg: Color) -> Self {
-        ColorCode((bg as u8) << BACKGROUND_SHIFT | (fg as u8))
+        Self((bg as u8) << BACKGROUND_SHIFT | (fg as u8))
     }
 }
 
@@ -71,11 +71,11 @@ struct ScreenChar {
 }
 
 impl ScreenChar {
-    fn new(ascii: u8, color: ColorCode) -> Self {
+    const fn new(ascii: u8, color: ColorCode) -> Self {
         Self { ascii, color }
     }
 
-    fn blank() -> Self {
+    const fn blank() -> Self {
         Self {
             ascii: b' ',
             color: ColorCode::new(Color::White, Color::Black),
@@ -185,7 +185,7 @@ pub fn clear_screen() {
     WRITER.lock().clear_screen();
 }
 
-fn index(x: usize, y: usize) -> usize {
+const fn index(x: usize, y: usize) -> usize {
     y * WIDTH + x
 }
 
@@ -249,4 +249,32 @@ fn println_reaches_the_screen() {
     for (i, c) in s.bytes().enumerate() {
         assert_eq!(WRITER.lock().read_cell(i, LAST_LINE - 1).ascii, c);
     }
+}
+
+#[test_case]
+fn printable_range_boundaries() {
+    let mut buf = Buffer::new();
+    buf.print_char(0x20);
+    assert_eq!(buf.read_cell(0, LAST_LINE).ascii, 0x20);
+
+    buf.move_to_bottom_line();
+    buf.print_char(0x7E);
+    assert_eq!(buf.read_cell(0, LAST_LINE).ascii, 0x7E);
+
+    buf.move_to_bottom_line();
+    buf.print_char(0x1F);
+    assert_eq!(buf.read_cell(0, LAST_LINE).ascii, REPLACEMENT_CHAR);
+
+    buf.move_to_bottom_line();
+    buf.print_char(0x7F);
+    assert_eq!(buf.read_cell(0, LAST_LINE).ascii, REPLACEMENT_CHAR);
+}
+
+#[test_case]
+fn set_color_is_applied_to_written_cells() {
+    let mut buf = Buffer::new();
+    let green = ColorCode::new(Color::Green, Color::Black);
+    buf.set_color(green);
+    buf.print_char(b'G');
+    assert_eq!(buf.read_cell(0, LAST_LINE).color.0, green.0);
 }

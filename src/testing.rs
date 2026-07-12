@@ -2,7 +2,6 @@ use crate::halt;
 use crate::{serial_print, serial_println};
 use core::panic::PanicInfo;
 
-#[cfg(test)]
 pub fn test_runner(tests: &[&dyn Testable]) {
     serial_println!("running {} test(s)", tests.len());
     for test in tests {
@@ -30,7 +29,7 @@ pub fn exit_qemu(exit_code: QemuExitCode) {
             in("dx") 0xF4u16,
             in("eax") exit_code as u32,
             options(nomem, nostack, preserves_flags),
-        )
+        );
     }
 }
 
@@ -39,10 +38,9 @@ pub enum QemuExitCode {
     Failed = 0x11,
 }
 
-#[cfg(test)]
-#[panic_handler]
-fn panic(info: &PanicInfo) -> ! {
-    serial_println!("{}", info);
+// Shared panic handler for test binaries (lib unit tests + each integration test).
+pub fn test_panic_handler(info: &PanicInfo) -> ! {
+    serial_println!("[failed]\n{}", info);
     exit_qemu(QemuExitCode::Failed);
     halt();
 }

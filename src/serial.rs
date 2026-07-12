@@ -1,7 +1,7 @@
 use core::fmt::Write;
 
-use spin::{Mutex, lazylock::LazyLock};
-use uart_16550::{Config, Uart16550Tty, backend::PioBackend};
+use spin::{lazylock::LazyLock, Mutex};
+use uart_16550::{backend::PioBackend, Config, Uart16550Tty};
 
 #[allow(dead_code)]
 pub static SERIAL1: LazyLock<Mutex<Uart16550Tty<PioBackend>>> = LazyLock::new(|| {
