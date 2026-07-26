@@ -27,6 +27,7 @@ pub fn halt() -> ! {
 #[unsafe(no_mangle)]
 #[unsafe(link_section = ".text.start")]
 pub extern "C" fn _start() -> ! {
+    crate::interrupts::init_idt();
     test_main();
     halt();
 }

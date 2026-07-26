@@ -1,5 +1,11 @@
 use crate::println;
 
+const BREAKPOINT: usize = 3;
+const IDT_ENTRIES: usize = 256;
+
+const PRESENT: u8 = 1 << 7;
+const INTERRUPT_GATE: u8 = 0xE;
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 struct InterruptDescriptor64 {
@@ -33,7 +39,7 @@ impl InterruptDescriptor64 {
 
         self.selector = read_cs();
         self.ist = 0;
-        self.type_attributes = 0b1000_1110;
+        self.type_attributes = PRESENT | INTERRUPT_GATE;
         self.zero = 0;
     }
 }
@@ -44,8 +50,8 @@ fn read_cs() -> u16 {
     cs
 }
 
-static IDT: spin::Mutex<[InterruptDescriptor64; 256]> =
-    spin::Mutex::new([InterruptDescriptor64::missing(); 256]);
+static IDT: spin::Mutex<[InterruptDescriptor64; IDT_ENTRIES]> =
+    spin::Mutex::new([InterruptDescriptor64::missing(); IDT_ENTRIES]);
 
 #[repr(C, packed)]
 struct IdtPointer {
@@ -54,14 +60,19 @@ struct IdtPointer {
 }
 
 pub fn init_idt() {
-    unsafe {
-        let mut idt = IDT.lock();
-        idt[3].set_handler(breakpoint_handler);
+    let mut idt = IDT.lock();
 
-        let pointer = IdtPointer {
-            limit: (core::mem::size_of::<[InterruptDescriptor64; 256]>() - 1) as u16,
-            base: idt.as_ptr() as u64,
-        };
+    idt[BREAKPOINT].set_handler(breakpoint_handler);
+
+    load_idt(&idt);
+}
+
+fn load_idt(idt: &[InterruptDescriptor64; IDT_ENTRIES]) {
+    let pointer = IdtPointer {
+        limit: (core::mem::size_of::<[InterruptDescriptor64; IDT_ENTRIES]>() - 1) as u16,
+        base: idt.as_ptr() as u64,
+    };
+    unsafe {
         core::arch::asm!("lidt [{}]", in(reg) &pointer, options(readonly, nostack));
     }
 }
@@ -78,5 +89,10 @@ pub struct InterruptStackFrame {
 
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT");
-    println!("{:#?}", frame);
+    println!("{:#X?}", frame);
+}
+
+#[test_case]
+fn test_breakpoint_exception() {
+    unsafe { core::arch::asm!("int3") };
 }
