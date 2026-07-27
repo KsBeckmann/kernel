@@ -8,6 +8,10 @@ name = "kernel"
 test = false
 bench = false
 
+[[test]]
+name = "double_fault"
+harness = false
+
 [dependencies]
 spin = "0.12.1"
 uart_16550 = "0.6.0"

@@ -1,6 +1,7 @@
 use crate::println;
 
 const BREAKPOINT: usize = 3;
+const DOUBLE_FAULT: usize = 8;
 const IDT_ENTRIES: usize = 256;
 
 const PRESENT: u8 = 1 << 7;
@@ -42,6 +43,21 @@ impl InterruptDescriptor64 {
         self.type_attributes = PRESENT | INTERRUPT_GATE;
         self.zero = 0;
     }
+
+    fn set_handler_with_error_code(
+        &mut self,
+        handler: extern "x86-interrupt" fn(InterruptStackFrame, u64) -> !,
+    ) {
+        let addr = handler as u64;
+        self.offset_1 = addr as u16;
+        self.offset_2 = (addr >> 16) as u16;
+        self.offset_3 = (addr >> 32) as u32;
+
+        self.selector = read_cs();
+        self.ist = 0;
+        self.type_attributes = PRESENT | INTERRUPT_GATE;
+        self.zero = 0;
+    }
 }
 
 fn read_cs() -> u16 {
@@ -60,14 +76,15 @@ struct IdtPointer {
 }
 
 pub fn init_idt() {
-    let mut idt = IDT.lock();
+    set_breakpoint_handler(breakpoint_handler);
+    set_double_fault_handler(double_fault_handler);
 
-    idt[BREAKPOINT].set_handler(breakpoint_handler);
-
-    load_idt(&idt);
+    load_idt();
 }
 
-fn load_idt(idt: &[InterruptDescriptor64; IDT_ENTRIES]) {
+fn load_idt() {
+    let idt = IDT.lock();
+
     let pointer = IdtPointer {
         limit: (core::mem::size_of::<[InterruptDescriptor64; IDT_ENTRIES]>() - 1) as u16,
         base: idt.as_ptr() as u64,
@@ -75,6 +92,14 @@ fn load_idt(idt: &[InterruptDescriptor64; IDT_ENTRIES]) {
     unsafe {
         core::arch::asm!("lidt [{}]", in(reg) &pointer, options(readonly, nostack));
     }
+}
+
+pub fn set_breakpoint_handler(handler: extern "x86-interrupt" fn(InterruptStackFrame)) {
+    IDT.lock()[BREAKPOINT].set_handler(handler);
+}
+
+pub fn set_double_fault_handler(handler: extern "x86-interrupt" fn(InterruptStackFrame, u64) -> !) {
+    IDT.lock()[DOUBLE_FAULT].set_handler_with_error_code(handler);
 }
 
 #[derive(Debug)]
@@ -90,6 +115,12 @@ pub struct InterruptStackFrame {
 extern "x86-interrupt" fn breakpoint_handler(frame: InterruptStackFrame) {
     println!("EXCEPTION: BREAKPOINT");
     println!("{:#X?}", frame);
+}
+
+extern "x86-interrupt" fn double_fault_handler(frame: InterruptStackFrame, _error_code: u64) -> ! {
+    println!("EXCEPTION: DOUBLE FAULT HANDLER");
+    println!("{:#X?}", frame);
+    crate::halt();
 }
 
 #[test_case]

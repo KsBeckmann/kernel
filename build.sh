@@ -48,6 +48,7 @@ if [[ "${RUN:-0}" == "1" ]]; then
 
     if [[ "$IS_TEST" == 1 ]]; then
         timeout 300 qemu-system-x86_64 -drive format=raw,file="$IMG" \
+            -no-reboot \
             -device isa-debug-exit,iobase=0xf4,iosize=0x04 \
             -serial stdio -display none </dev/null || status=$?
     else
